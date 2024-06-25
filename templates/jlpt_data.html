@@ -1,0 +1,22 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+
+{% block title %}Dashboard - JLPT Data{% endblock %}
+
+{% block content %}
+<div style="display: inline;">
+    <h2 class="mb-4">JLPT Stats</h2>
+    <ul class="list-group mb-4">
+        {% for key, value in jlpt_count.items() %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ key }}
+                <span class="badge badge-primary badge-pill">{{ value }}</span>
+                <a href="/jlpt/{{ key }}" class="btn btn-sm btn-info ml-2">View Details for Candidate</a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h2 class="mb-4">Total JLPT Registered</h2>
+    <p>{{ total }}</p>
+</div>
+{% endblock %}

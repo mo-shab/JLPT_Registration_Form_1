@@ -1,9 +1,34 @@
 #!/usr/bin/python3
-from flask import Flask, request, redirect, url_for, render_template
+from flask import Flask, request, redirect, url_for, render_template, session, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 import os
 import csv
+import plotly.express as px
+import pandas as pd
 
 app = Flask(__name__)
+app.secret_key = 'This_is_not_my_secret_key'
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+users = {
+    'shab': {'password': 'shab'}
+}
+
+# User class for Flask-Login (replace with your actual User model if using a database)
+class User(UserMixin):
+    pass
+
+# Load user function for Flask-Login (replace with your actual user loading logic)
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id in users:
+        user = User()
+        user.id = user_id
+        return user
+    return None
+
 
 temp_data = {}
 
@@ -153,5 +178,164 @@ def confirm():
 def exception_handler(e):
     return render_template('500.html'), 500
 
+
+@app.errorhandler(404)
+def exception_handler(e):
+    return render_template('404.html'), 404
+
+def jlpt_stats():
+    """Function that open the cvs file, read it, calcul the number of people
+    who register, and who register on each level"""
+    levels = ['N1', 'N2', 'N3', 'N4', 'N5']
+    jlpt_count = {'N1': 0, 'N2': 0, 'N3': 0, 'N4': 0, 'N5': 0} 
+    jlpt_rev = {'N1': 0, 'N2': 0, 'N3': 0, 'N4': 0, 'N5': 0}
+    total = 0
+    for level in levels:
+        file_name = f'data_{level}.csv'
+        if os.path.exists(file_name):
+            with open(file_name, 'r') as f:
+                reader = csv.reader(f)
+                last_row = None
+                for row in reader:
+                    last_row = row
+                if last_row is not None:
+                    jlpt_count[level] = int(last_row[4])
+        else:
+            jlpt_count[level] = 0
+    for jlpt in jlpt_count:
+        if jlpt == 'N1':
+            jlpt_rev[jlpt] = jlpt_count[jlpt] * 450
+        else:
+            if jlpt == 'N2':
+                jlpt_rev[jlpt] = jlpt_count[jlpt] * 400
+            else:
+                if jlpt == 'N3':
+                    jlpt_rev[jlpt] = jlpt_count[jlpt] * 350
+                else:
+                    if jlpt == 'N4':
+                        jlpt_rev[jlpt] = jlpt_count[jlpt] * 300
+                    else:
+                        if jlpt == 'N5':
+                            jlpt_rev[jlpt] = jlpt_count[jlpt] * 250
+                            
+        total += jlpt_count[jlpt]
+    
+    return jlpt_count, total
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username in users and users[username]['password'] == password:
+            user = User()
+            user.id = username
+            login_user(user)
+            session['logged_in'] = True
+            session['username'] = username
+            return redirect(url_for('jlpt'))  # Redirect to 'jlpt' endpoint
+        else:
+            error = 'Invalid username/password combination'
+    return render_template('login.html', error=error)
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    else:
+        logout_user()
+        session.pop('logged_in', None)
+        session.pop('username', None)
+        return redirect(url_for('login'))
+    
+@app.route('/jlpt', methods=['GET', 'POST'])
+def jlpt():
+    jlpt_count, total = jlpt_stats()
+    print(jlpt_count)
+    print(total)
+    return render_template('jlpt_data.html', total=total, jlpt_count=jlpt_count)
+
+
+@app.route('/jlpt/N<level>', strict_slashes=False)
+def get_data(level):
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    else:
+        data_file = f"data_N{level}.csv"
+        infor_file = f"infos_N{level}.csv"
+        data = []
+        infor = []
+        if os.path.exists(data_file):
+            with open(data_file, 'r') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    data.append(row)
+        if os.path.exists(infor_file):
+            with open(infor_file, 'r') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    infor.append(row)
+        return render_template('data.html', data=data, infor=infor, level=level)
+    
+
+@app.route('/delete/<level>/<int:row_number>', methods=['POST', 'GET'], strict_slashes=False)
+def delete_row(level, row_number):
+    data_file = f"data_N{level}.csv"
+    data_file_2 = f"infos_N{level}.csv"
+    deleted_info = f"deleted_info_N{level}.csv"
+
+    if os.path.exists(data_file) and os.path.exists(data_file_2):
+        with open(data_file, 'r') as f:
+            rows = list(csv.reader(f))
+        
+        with open(data_file_2, 'r') as f:
+            rows_2 = list(csv.reader(f))
+
+        if 0 <= row_number < len(rows):
+            name = rows[row_number][5]  # Assuming name is in the 6th column
+            rows.pop(row_number)
+            deleted_row = rows_2.pop(row_number)
+
+            # store the deleted row in a separate file for logging
+            with open(deleted_info, 'a') as f:
+                f.write(','.join(deleted_row) + '\n')
+            
+
+            # Decrement JLPT counter for remaining rows
+            for i in range(row_number, len(rows)):
+                rows[i][4] = f"{int(rows[i][4]) - 1:04}"  # Assuming JLPT counter is in the 5th column
+                rows_2[i][0] = f"{int(rows_2[i][0]) - 1:04}"
+           
+
+            new_raws = []
+            for row in rows: # Join elements of the row with commas and wrap them in double quotes
+                row_string = ','.join([f'"{i}"' for i in row])
+                new_raws.append(row_string)
+            
+            with open(data_file, 'w', newline='') as f:
+                for row in new_raws:
+                    f.write(row + '\n')
+            
+            with open(data_file_2, 'w', newline='') as f:
+                for row in rows_2:
+                    f.write(','.join(row) + '\n')
+            
+            flash(f"{name} deleted successfully!")
+            return redirect(url_for('get_data', level=level))  # Return the deleted row surrounded by double quotes
+        else:
+            flash("Row number out of range!")
+    else:
+        flash("Data file not found!")
+    
+    return redirect(url_for('get_data', level=level))
+
+
+@app.route('/base')
+def base():
+    return render_template('base.html')
+
+
 if __name__ == '__main__':
-    app.run(port=8000)
+    app.run(debug=True)

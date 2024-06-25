@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JLPT Data</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        /* Additional custom styles */
+        body {
+            background-color: #f0f0f0;
+            padding-top: 20px; /* Adjust as needed */
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px; /* Adjust as needed */
+        }
+        table {
+            width: 100%;
+            margin-bottom: 20px; /* Adjust as needed */
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            vertical-align: middle;
+        }
+        button {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center">JLPT Level N{{ level }} Data</h1>
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        <ul>
+                            {% for message in messages %}
+                                <li>{{ message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% endwith %}
+
+                <table class="table table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>JLPT Level</th>
+                            <th>Full Name</th>
+                            <th>Gender</th>
+                            <th>Year of Birth</th>
+                            <th>Month of Birth</th>
+                            <th>Day of Birth</th>
+                            <th>Pass Code</th>
+                            <th>Email</th>
+                            <th>Phone Number</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in infor %}
+                            <tr>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[3] }}</td>
+                                <td>{{ row[4] }}</td>
+                                <td>{{ row[5] }}</td>
+                                <td>{{ row[6] }}</td>
+                                <td>{{ row[7] }}</td>
+                                <td>{{ row[8] }}</td>
+                                <td>{{ row[15] }}</td>
+                                <td>{{ row[14] }}</td>
+                                <td>
+                                    <form action="{{ url_for('delete_row', level=level, row_number=loop.index0) }}" method="post">
+                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS (Optional, if you need JS features) -->
+</body>
+</html>
